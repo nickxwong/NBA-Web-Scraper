@@ -4,59 +4,91 @@ from bs4 import BeautifulSoup
 import requests
 import re
 
-statTypes = ["pts", "ast", "rbd", "stl", "blk"]
+report = ''
 
+# r/NBA subreddit
+report += 'Top 5 Posts on r/NBA\n'
+html = BeautifulSoup(requests.get('https://old.reddit.com/r/nba/', headers={'User-agent': '1'}).text, 'html.parser')
+
+# assemble all posts on r/NBA's front page into a list
+today_posts = []
+posts = html.select('.thing:not(.promoted)')
+for post in posts:
+    title = post.find('a', class_='title').text
+    upvotes = post.find(class_='score unvoted').text
+    url = post.find('a')['href']
+    today_posts.append((title, int(upvotes) if upvotes != '•' else 0, url))
+
+# sort list by number of upvotes
+today_posts.sort(reverse=True, key=lambda post: post[1])
+
+for x in range(5):
+    report += f'[{x + 1}] {today_posts[x][0]}\n'
+    # add url 
+    url = today_posts[x][2]
+    if url.startswith('/r/nba/'):
+        url = 'https://www.reddit.com' + url
+    report += f'{url}\n' 
+
+# Yesterday's games
+# get yesterday's date 
 date = str(date.today() - timedelta(days = 1))
-month = date.split("-")[1]
-day = date.split("-")[2]
-year = date.split("-")[0]
+month = date.split('-')[1]
+day = date.split('-')[2]
+year = date.split('-')[0]
 
-url = f"https://www.basketball-reference.com/boxscores/?month={month}&day={day}&year={year}"
-page = requests.get(url)
-doc = BeautifulSoup(page.text, "html.parser")
+report += '\n------------------------------\n'
+report += f'\nGames played on {month}/{day}/{year}\n'
 
-print("\nGAMES PLAYED")
+# get scores of all games played yesterday
+# url = f'https://www.basketball-reference.com/boxscores/?month={month}&day={day}&year={year}'
+url = f'https://www.basketball-reference.com/boxscores/?month={5}&day={15}&year={2022}'
+html = BeautifulSoup(requests.get(url).text, 'html.parser')
 
-div = doc.find(class_="game_summaries")
-games = doc.find_all(class_="game_summary expanded nohover")
-for game in games:
-    winner = game.find(class_="winner")
-    wscore = winner.find(class_="right")
-    loser = game.find(class_="loser")
-    lscore = loser.find(class_="right")
+if html.find(string='No games played on this date.') != None:
+    report += 'No games were played yesterday :(\n'
+else:
+    games_played = html.find_all(class_='game_summary expanded nohover')
+    i = 1
+    for game in games_played:
+        winner = game.find(class_='winner')
+        winner_score = winner.find(class_='right').text
+        loser = game.find(class_='loser')
+        loser_score = loser.find(class_='right').text
 
-    print(winner.a.text + " d. " + loser.a.text + " " + wscore.text + "-" + lscore.text)
+        report += f'[{i}] {winner.a.text} d. {loser.a.text} {winner_score}-{loser_score}\n'
+        i += 1
 
-    bs_url = game.find(class_="links").a["href"]
-    url = f"https://www.basketball-reference.com{bs_url}"
-    page = requests.get(url)
-    doc = BeautifulSoup(page.text, "html.parser")
+        # get box score of the game
+        url = game.find(class_='links').a['href']
+        html = BeautifulSoup(requests.get(f'https://www.basketball-reference.com{url}').text, 'html.parser')
 
-    stats = { }
-    for boxscore in doc.find_all(text=re.compile("Basic and Advanced Stats Table")):
-        table = boxscore.parent.parent.tbody
-        players = table.find_all(class_="left")
-        for player in players:
-            name = player.a.text.split(" ")[1]
-            for row in player.next_siblings:
-                if row.get('data-stat') == "trb":
-                    rbd = row.text
-                if row.get('data-stat') == "ast":
-                    ast = row.text
-                if row.get('data-stat') == "stl":
-                    stl = row.text
-                if row.get('data-stat') == "blk":
-                    blk = row.text
-                if row.get('data-stat') == "pts":
-                    pts = row.text
-            stats[name] = {"pts": int(pts), "ast": int(ast), "rbd": int(rbd), "stl": int(stl), "blk": int(blk)}
-    
-    print("LEADERS BY STATISTIC")
-    for x in range(5):
-        a = statTypes[x]
-        s = sorted(stats.items(), key=lambda x: x[1][a], reverse=True)
-        leader = s[0]
-        print(a.upper() + ": " + leader[0] + " " + str(leader[1]['pts']) + "/" + str(leader[1]['ast']) + "/" + str(leader[1]['rbd']) + "/" + 
-            str(leader[1]['stl']) + "/" + str(leader[1]['blk']))
+        player_stats = []
+        for boxscore in html.find_all(text=re.compile('Basic and Advanced Stats Table')):
+            table = boxscore.parent.parent.tbody
+            players = table.find_all(class_='left')
+            for player in players:
+                name = player.a.text.split(' ')[1]
+                for row in player.next_siblings:
+                    if (row.get('data-stat') == 'trb'):
+                        rbd = row.text
+                    if (row.get('data-stat') == 'ast'):
+                        ast = row.text
+                    if (row.get('data-stat') == 'stl'):
+                        stl = row.text
+                    if (row.get('data-stat') == 'blk'):
+                        blk = row.text
+                    if (row.get('data-stat') == 'pts'):
+                        pts = row.text
+                player_stats.append((name, int(pts), int(ast), int(rbd), int(stl), int(blk)))
         
-    print()
+        statTypes = ['pts', 'ast', 'rbd', 'stl', 'blk']
+        for x in range(5):
+            a = statTypes[x]
+            player_stats.sort(reverse=True, key=lambda player: player[x + 1])
+            leader = player_stats[0]
+            report += f'{leader[0]} was the {a.upper()} leader with {str(player_stats[0][x + 1])} {a}\n'
+        
+        report += '\n'
+
+print(report)
