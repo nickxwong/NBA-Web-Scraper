@@ -6,30 +6,6 @@ import re
 
 report = ''
 
-# r/NBA subreddit
-report += 'Top 5 Posts on r/NBA\n'
-html = BeautifulSoup(requests.get('https://old.reddit.com/r/nba/', headers={'User-agent': '1'}).text, 'html.parser')
-
-# assemble all posts on r/NBA's front page into a list
-today_posts = []
-posts = html.select('.thing:not(.promoted)')
-for post in posts:
-    title = post.find('a', class_='title').text
-    upvotes = post.find(class_='score unvoted').text
-    url = post.find('a')['href']
-    today_posts.append((title, int(upvotes) if upvotes != '•' else 0, url))
-
-# sort list by number of upvotes
-today_posts.sort(reverse=True, key=lambda post: post[1])
-
-for x in range(5):
-    report += f'[{x + 1}] {today_posts[x][0]}\n'
-    # add url 
-    url = today_posts[x][2]
-    if url.startswith('/r/nba/'):
-        url = 'https://www.reddit.com' + url
-    report += f'{url}\n' 
-
 # Yesterday's games
 # get yesterday's date 
 date = str(date.today() - timedelta(days = 1))
@@ -37,12 +13,12 @@ month = date.split('-')[1]
 day = date.split('-')[2]
 year = date.split('-')[0]
 
-report += '\n------------------------------\n'
-report += f'\nGames played on {month}/{day}/{year}\n'
+report += f'YESTERDAY ({month}/{day}/{year}) IN THE NBA\n'
+report += '---------------------\n\n'
+report += f'GAMES PLAYED\n'
 
 # get scores of all games played yesterday
-# url = f'https://www.basketball-reference.com/boxscores/?month={month}&day={day}&year={year}'
-url = f'https://www.basketball-reference.com/boxscores/?month={5}&day={15}&year={2022}'
+url = f'https://www.basketball-reference.com/boxscores/?month={month}&day={day}&year={year}'
 html = BeautifulSoup(requests.get(url).text, 'html.parser')
 
 if html.find(string='No games played on this date.') != None:
@@ -87,8 +63,32 @@ else:
             a = statTypes[x]
             player_stats.sort(reverse=True, key=lambda player: player[x + 1])
             leader = player_stats[0]
-            report += f'{leader[0]} was the {a.upper()} leader with {str(player_stats[0][x + 1])} {a}\n'
+            report += f'    * {leader[0]} was the {a.upper()} leader with {str(player_stats[0][x + 1])} {a}\n'
         
         report += '\n'
+
+# r/NBA subreddit
+report += '\nTOP 5 POSTS ON r/NBA\n'
+html = BeautifulSoup(requests.get('https://old.reddit.com/r/nba/', headers={'User-agent': '1'}).text, 'html.parser')
+
+# assemble all posts on r/NBA's front page into a list
+today_posts = []
+posts = html.select('.thing:not(.promoted)')
+for post in posts:
+    title = post.find('a', class_='title').text
+    upvotes = post.find(class_='score unvoted').text
+    url = post.find('a')['href']
+    today_posts.append((title, int(upvotes) if upvotes != '•' else 0, url))
+
+# sort list by number of upvotes
+today_posts.sort(reverse=True, key=lambda post: post[1])
+
+for x in range(5):
+    report += f'[{x + 1}] {today_posts[x][0]}\n'
+    # add url 
+    url = today_posts[x][2]
+    if url.startswith('/r/nba/'):
+        url = 'https://www.reddit.com' + url
+    report += f'{url}\n' 
 
 print(report)
