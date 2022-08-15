@@ -3,6 +3,15 @@ from datetime import timedelta
 from bs4 import BeautifulSoup
 import requests
 import re
+from dotenv import load_dotenv
+import os
+import smtplib 
+
+def convertToInt(str):
+    if str.isnumeric():
+        return int(str)
+    else:
+        return float(str.split('k')[0]) * 1000
 
 report = ''
 
@@ -78,7 +87,7 @@ for post in posts:
     title = post.find('a', class_='title').text
     upvotes = post.find(class_='score unvoted').text
     url = post.find('a')['href']
-    today_posts.append((title, int(upvotes) if upvotes != '•' else 0, url))
+    today_posts.append((title, convertToInt(upvotes) if upvotes != '•' else 0, url))
 
 # sort list by number of upvotes
 today_posts.sort(reverse=True, key=lambda post: post[1])
@@ -91,4 +100,22 @@ for x in range(5):
         url = 'https://www.reddit.com' + url
     report += f'{url}\n' 
 
-print(report)
+
+# email report
+load_dotenv()
+
+ADDRESS = os.environ.get('ADDRESS')
+PASS = os.environ.get('PASS')
+
+with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.ehlo()
+
+    smtp.login(ADDRESS, PASS) 
+    
+    subject = f'Daily NBA Report ({month}/{day}/{year})'
+
+    msg = f'Subject: {subject}\n\n{report}'
+
+    smtp.sendmail('nba.webparser@gmail.com', 'nicolaswong01@gmail.com', msg.encode('utf-8'))
